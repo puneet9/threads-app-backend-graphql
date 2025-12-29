@@ -1,6 +1,7 @@
 import express from 'express';
-import { ApolloServer } from '@apollo/server';
-import { expressMiddleware} from "@as-integrations/express5";
+import { expressMiddleware } from "@as-integrations/express5";
+import createApolloGraphqlServer from './graphql/index.js';
+import UserService from './services/user.js';
 
 async function init() {
     const app = express();
@@ -8,31 +9,25 @@ async function init() {
 
     app.use(express.json());
 
-    const gqlserver = new ApolloServer({
-        typeDefs: `
-            type Query {
-                hello: String 
-            }`,
-        resolvers: {
-            Query:{
-                hello: () => "Helllooooo"
-            }
-        },
-    });
-
-    await gqlserver.start();
-
     app.get("/", (req, res) => {
         res.json({message: "Server is running"});
     })
 
     app.use(
-    '/graphql',
-    expressMiddleware(gqlserver),
+        '/graphql',
+        expressMiddleware(await createApolloGraphqlServer(), {
+            context: async ({ req }) => { const token = req.headers['token']
+                try {
+                    const user = UserService.decodeJWTToken(token as string);
+                    return { user };
+                } catch (error) {
+                    return { user: null };
+                }
+            },
+        })
     );
 
     app.listen(port,() => console.log(`Server started at port:${port}`));
 }
 
 init();
-
